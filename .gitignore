@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+*.egg
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.pyo
+db.sqlite3
+db.sqlite3-journal
+
+# Local environment settings
+.env
+
+# Virtual environment
+myenv/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.coverage
+*.cover
+*.coverage.*
+nosetests.xml
+coverage.xml
+*.spec
+
+
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MacOS files
+.DS_Store
