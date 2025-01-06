@@ -5,6 +5,8 @@ from .models import Airplane
 import math
 from .serializers import AirplaneSerializer
 from rest_framework.exceptions import ValidationError
+from unittest.mock import patch
+from .views import AirplaneListCreateView
 
 
 class AirplaneTestCase(TestCase):
@@ -83,7 +85,6 @@ class AirplaneTestCase(TestCase):
         self.assertGreater(airplane.max_flight_minutes, 0.0)
 
     def test_invalid_airplane_id(self):
-        """Test airplane creation with invalid ID."""
         with self.assertRaises(Exception):
             Airplane.objects.create(id=-1, passengers=10)
 
@@ -196,3 +197,103 @@ class AirplaneTestCase(TestCase):
         with self.assertRaises(ValidationError) as context:
             serializer.validate_passengers(-10)
         self.assertEqual(str(context.exception.detail[0]), "Passenger count cannot be negative.")
+
+    def test_get_empty_airplane_list(self):
+        Airplane.objects.all().delete()
+        response = self.client.get('/api/airplanes/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("No airplanes found.", response.data['message'])
+
+    def test_create_airplane_invalid_data(self):
+        response = self.client.post('/api/airplanes/', {"id": -1, "passengers": "invalid"}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        if "id" in response.data:
+            self.assertIn("Airplane ID must be a positive integer.", response.data['id'])
+        if "passengers" in response.data:
+            self.assertIn("A valid integer is required.", response.data['passengers'])
+
+    @patch('airplanes.views.AirplaneListCreateView.get_queryset', side_effect=Exception("Unexpected error"))
+    def test_list_airplanes_unexpected_error(self, mock_get_queryset):
+        """Test unexpected error handling in list view."""
+        response = self.client.get('/api/airplanes/')
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertIn(
+            "An unexpected error occurred while fetching the airplane list.",
+            response.data['detail']
+        )
+
+    def test_create_airplane_missing_id(self):
+        """Test airplane creation with missing ID."""
+        response = self.client.post('/api/airplanes/', {"passengers": 50}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("id", response.data)
+
+    @patch('airplanes.views.Airplane.objects.count', return_value=10)
+    def test_create_airplane_max_limit(self, mock_count):
+        response = self.client.post('/api/airplanes/', {"id": 11, "passengers": 50}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("You can only assess up to 10 airplanes.", response.data['detail'])
+
+    def test_create_airplane_invalid_id(self):
+        response = self.client.post('/api/airplanes/', {"id": -1, "passengers": 50}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Airplane ID must be a positive integer.", response.data['id'])
+
+    def test_create_airplane_invalid_passengers(self):
+        response = self.client.post('/api/airplanes/', {"id": 5, "passengers": -10}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Passenger count cannot be negative.", response.data['passengers'])
+
+    def test_list_airplanes_no_data(self):
+        """Test listing airplanes when no airplanes exist."""
+        Airplane.objects.all().delete()  # Ensure no airplanes exist
+        response = self.client.get('/api/airplanes/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("No airplanes found.", response.data['message'])
+
+    def test_create_airplane_unexpected_error(self):
+        """Test unexpected error handling in create view."""
+        response = self.client.post(
+            '/api/airplanes/',
+            {"id": 1, "passengers": 50, "raise_exception": True},
+            format='json'
+        )
+
+        # Assert the response status is 500
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Assert the error message in the response
+        self.assertIn("An unexpected error occurred while creating airplane.", response.data['detail'])
+
+    def test_create_airplane_zero_id(self):
+        """Test airplane creation with ID = 0."""
+        response = self.client.post('/api/airplanes/', {"id": 0, "passengers": 50}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Airplane ID must be a positive integer.", response.data['id'])
+
+    def test_create_airplane_negative_id(self):
+        """Test airplane creation with negative ID."""
+        response = self.client.post('/api/airplanes/', {"id": -1, "passengers": 50}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Airplane ID must be a positive integer.", response.data['id'])
+
+    def test_create_airplane_negative_passengers(self):
+        """Test airplane creation with negative passenger count."""
+        response = self.client.post('/api/airplanes/', {"id": 1, "passengers": -10}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Passenger count cannot be negative.", response.data['passengers'])
+
+    def test_validate_passengers_negative_view(self):
+        """Test passenger validation with negative count."""
+        with self.assertRaises(ValidationError) as context:
+            view = AirplaneListCreateView()
+            view.validate_passengers(-10)
+        self.assertEqual(context.exception.detail, {"passengers": "Passenger count cannot be negative."})
+
+    def test_validate_airplane_id_invalid(self):
+        """Test airplane ID validation with invalid ID."""
+        with self.assertRaises(ValidationError) as context:
+            view = AirplaneListCreateView()
+            view.validate_airplane_id(-1)
+        self.assertEqual(context.exception.detail, {"id": "Airplane ID must be a positive integer."})
