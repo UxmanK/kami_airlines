@@ -15,7 +15,7 @@ A RESTful API for managing airplane fuel consumption and flight capacity.
 1. Clone the repository:
 
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/UxmanK/kami_airlines.git
    cd kami_airlines
    ```
 
